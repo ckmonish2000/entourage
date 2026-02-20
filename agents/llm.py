@@ -1,6 +1,6 @@
 import os
 from openai import OpenAI
-import config
+from . import config
 class LLM:
     def __init__(self):
         self.client = OpenAI()
