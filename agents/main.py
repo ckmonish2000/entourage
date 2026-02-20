@@ -1,13 +1,8 @@
-import os
-
-from prompts.system_prompt import system_prompt
-from llm import LLM
-import config
+from loop import Loop
 
 def main():
-    llm = LLM()
-    response = llm.generate(prompt='hey')
-    print(response)
+    loop = Loop()
+    loop.run()
 
     
 
