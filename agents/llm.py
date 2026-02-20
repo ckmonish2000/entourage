@@ -14,5 +14,12 @@ class LLM:
         )
         return response.output_text
 
-    def stream():
-        return
+    def stream(self,*,prompt):
+        response = self.client.responses.create(
+            model = config.MODEL_NAME,
+            temperature= config.TEMPRATURE,
+            input = prompt,
+            stream=True
+        )
+        for chunk in response:
+            yield chunk
