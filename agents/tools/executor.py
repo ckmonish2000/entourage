@@ -1,5 +1,5 @@
 import inspect
-from typing import Callable, Optional,Literal,TypedDict
+from typing import Callable, Optional, Literal, TypedDict, Any
 from agents.constants import TYPE_MAPPING
 
 tool_registry = {}
@@ -8,6 +8,16 @@ tool_schema = []
 class ExtractedFuncResponse(TypedDict):
     properties: dict[str, object]
     required_parameters: list[str]
+
+class ToolSuccessResponse(TypedDict):
+    type: Literal["success"]
+    result: Any
+
+class ToolErrorResponse(TypedDict):
+    type: Literal["error"]
+    message: str
+
+ToolExecutionResult = ToolSuccessResponse | ToolErrorResponse
 
 def register_tool(func: Callable[..., object]):
     """Register a callable tool and generate its schema metadata.
@@ -67,15 +77,15 @@ def extract_func_arguments(func:object) -> ExtractedFuncResponse:
 
    
 
-def execute_tool(tool_name:str,arguments:dict):
+def execute_tool(tool_name: str, arguments: dict[str, Any]) -> ToolExecutionResult:
     """Execute a registered tool by name with keyword arguments.
 
     Returns the tool result when found, otherwise a not-found message.
     """
     try:
         if tool_name in tool_registry:
-            return {"type":"success","result":tool_registry[tool_name](**arguments)}
+            return {"type": "success", "result": tool_registry[tool_name](**arguments)}
         else:
-            return {"type":"error","message":"Tool not found"}
+            return {"type": "error", "message": "Tool not found"}
     except Exception as e:
-        return {"type":"error","message":str(e)}
+        return {"type": "error", "message": str(e)}
