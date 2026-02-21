@@ -23,7 +23,7 @@ class Loop:
     
     def _generate_response(self):
         """Internal Method to handle non-streaming responses"""
-        response = self.llm.generate(prompt=self.memory.get_message())
+        response = self.llm.generate(prompt=self.memory.get_messages())
         return response
     
     def _stream_response(self):
@@ -32,7 +32,7 @@ class Loop:
 
         while iteration < MAX_ITERATIONS:
             try:
-                response = self.llm.stream(prompt=self.memory.get_message())
+                response = self.llm.stream(prompt=self.memory.get_messages())
                 iteration += 1
 
                 # keep track of streaming response
@@ -45,14 +45,14 @@ class Loop:
                         # yield the chunk to the caller
                         yield chunk.delta
                     if chunk.type == ChunkType.OUTPUT_ITEM_ADDED:
-                        item = getattr(chunk,'item',None)
+                        item = self._get_chunk_item(chunk)
                         # identify and store tool calls
                         if item.type == ItemType.FUNCTION_CALL:
                             call_id = getattr(item,'call_id',None)
                             tool_calls[call_id] = {"call_id":call_id,"name":getattr(item,'name',None)}
                             has_tool_calls = True
                     if chunk.type == ChunkType.OUTPUT_ITEM_DONE:
-                        item = getattr(chunk,'item',None)
+                        item = self._get_chunk_item(chunk)
                         # store tool call arguments
                         if item.type == ItemType.FUNCTION_CALL:
                             call_id = getattr(item,'call_id',None)
@@ -87,11 +87,19 @@ class Loop:
                 break
 
     def get_conversation_history(self):
-        """Internal method to get the conversation history"""
-        return self.memory.get_message()
+        """Return the full conversation history stored in memory.
+
+        This includes system, user, assistant, and tool-related developer
+        messages in chronological order.
+        """
+        return self.memory.get_messages()
     
     def parse_tool_call_argument(self,item:object):
-        """Internal method to parse the tool call arguments"""
+        """Parse tool call arguments from a streamed function-call item.
+
+        Returns a decoded dict when valid JSON is present, otherwise ``None``.
+        Invalid JSON is logged and treated as missing arguments.
+        """
         # get the arguments from the tool call
         args = getattr(item,'arguments',None)
         # parse the arguments
@@ -104,6 +112,9 @@ class Loop:
             # Log the error and return None to prevent tool execution with invalid args
             print(f"Warning: Failed to parse tool arguments: {e}")
             return None
+    
+    def _get_chunk_item(self,chunk:object):
+        """Safely extract ``item`` from a streaming chunk."""
+        return getattr(chunk,'item',None)
 
         
-

@@ -3,6 +3,16 @@ Constants for LLM response streaming events and types.
 """
 from typing import Literal
 
+# Type mapping for Python types to JSON schema types
+TYPE_MAPPING = {
+        int: "integer",
+        str: "string",
+        float: "number",
+        bool: "boolean",
+        list: "array",
+        dict: "object"
+}
+
 # Chunk event types from OpenAI streaming responses
 class ChunkType:
     """Event types for streaming response chunks"""

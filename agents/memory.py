@@ -11,5 +11,5 @@ class Memory:
         message = {"role": role, "content": content}
         self.message.append(message)
     
-    def get_message(self):
+    def get_messages(self):
         return self.message
