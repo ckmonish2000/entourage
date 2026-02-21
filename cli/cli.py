@@ -1,6 +1,5 @@
 import sys
 from agents.loop import Loop
-from agents.config import MAX_ITERATIONS
 
 class CLI:
     def __init__(self):
