@@ -1,6 +1,7 @@
 import os
 from openai import OpenAI
 from . import config
+from .tools import tools
 class LLM:
     def __init__(self):
         self.client = OpenAI()
@@ -10,7 +11,9 @@ class LLM:
             model = config.MODEL_NAME,
             temperature= config.TEMPRATURE,
             input = prompt,
-            stream=False
+            stream=False,
+            tools=tools,
+            tool_choice='auto'
         )
         return response.output_text
 
@@ -19,7 +22,9 @@ class LLM:
             model = config.MODEL_NAME,
             temperature= config.TEMPRATURE,
             input = prompt,
-            stream=True
+            stream=True,
+            tools=tools,
+            tool_choice='auto'
         )
         for chunk in response:
             yield chunk
