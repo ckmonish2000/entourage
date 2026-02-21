@@ -2,6 +2,7 @@ import os
 from openai import OpenAI
 from . import config
 from .tools import tools
+
 class LLM:
     def __init__(self):
         self.client = OpenAI()
@@ -9,7 +10,7 @@ class LLM:
     def generate(self,*,prompt):
         response = self.client.responses.create(
             model = config.MODEL_NAME,
-            temperature= config.TEMPRATURE,
+            temperature= config.TEMPERATURE,
             input = prompt,
             stream=False,
             tools=tools,
@@ -20,7 +21,7 @@ class LLM:
     def stream(self,*,prompt):
         response = self.client.responses.create(
             model = config.MODEL_NAME,
-            temperature= config.TEMPRATURE,
+            temperature= config.TEMPERATURE,
             input = prompt,
             stream=True,
             tools=tools,

@@ -21,19 +21,25 @@ def generate_tool_schema(func: callable):
     }
 
     signature = inspect.signature(func)
-    parameter = {}
+    required_properties = {}
+    required_parameters = []
     for param, param_type in signature.parameters.items():
         is_optional = param_type.default != inspect.Parameter.empty
-        parameter[param] = {
+        required_properties[param] = {
             "type": type_mapping.get(param_type.annotation, "string"),
-            "required": not is_optional
         }
+        if not is_optional:
+            required_parameters.append(param)
 
     tool_schema.append({
         "type": "function",
         "name": func.__name__,
         "description": func.__doc__,
-        "parameters": parameter
+        "parameters": {
+            "type": "object",
+            "properties": required_properties,
+            "required": required_parameters
+        }
     })
 
 def execute_tool(tool_name:str,arguments:dict):
