@@ -1,15 +1,16 @@
 import inspect
-from typing import Optional
+from typing import Callable, Optional
+
 tool_registry = {}
 tool_schema = []
 
-def register_tool(func: callable):
+def register_tool(func: Callable[..., object]):
     """Register a tool with the tool registry"""
     tool_registry[func.__name__] = func
     generate_tool_schema(func)
     return func
 
-def generate_tool_schema(func: callable):
+def generate_tool_schema(func: Callable[..., object]):
     """Generate tool schema from function signature"""
     type_mapping = {
         int: "integer",

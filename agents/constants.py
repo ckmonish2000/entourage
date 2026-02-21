@@ -1,6 +1,7 @@
 """
 Constants for LLM response streaming events and types.
 """
+from typing import Literal
 
 # Chunk event types from OpenAI streaming responses
 class ChunkType:
@@ -22,3 +23,5 @@ class MessageRole:
     USER = "user"
     ASSISTANT = "assistant"
     DEVELOPER = "developer"
+
+MessageRoleType = Literal["user", "assistant", "system", "developer"]
