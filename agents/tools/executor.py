@@ -22,8 +22,9 @@ def register_tool(func: Callable[..., object]):
 def generate_tool_schema(func: Callable[..., object]):
     """Build and store an OpenAI-style tool schema from a function signature.
 
-    Required parameters are inferred from arguments without defaults. Parameter
-    annotations are mapped to JSON schema primitive types where possible.
+    Generates a tool schema with function name, description, and parameter
+    specifications. Required parameters are inferred from arguments without
+    defaults. Parameter annotations are mapped to JSON schema primitive types.
     """
     func_args = extract_func_arguments(func)
     properties = func_args["properties"]
@@ -41,7 +42,11 @@ def generate_tool_schema(func: Callable[..., object]):
     })
 
 def extract_func_arguments(func:object) -> ExtractedFuncResponse:
-    """Extract function arguments from a function signature."""
+    """Extract function arguments from a function signature.
+
+    Inspects the function signature to build a properties dict with type
+    information and a list of required parameters (those without defaults).
+    """
     signature = inspect.signature(func)
     properties = {}
     required_parameters = []
@@ -67,7 +72,10 @@ def execute_tool(tool_name:str,arguments:dict):
 
     Returns the tool result when found, otherwise a not-found message.
     """
-    if tool_name in tool_registry:
-        return tool_registry[tool_name](**arguments)
-    else:
-        return f"Tool {tool_name} not found"
+    try:
+        if tool_name in tool_registry:
+            return {"type":"success","result":tool_registry[tool_name](**arguments)}
+        else:
+            return {"type":"error","message":"Tool not found"}
+    except Exception as e:
+        return {"type":"error","message":str(e)}
