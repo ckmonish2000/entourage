@@ -1,5 +1,7 @@
-from .executor import register_tool
+from ..registry import register_tool
 from typing import Optional
+
+
 @register_tool
 def get_current_weather(location: str) -> str:
     """Get the current weather in a given location"""

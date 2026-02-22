@@ -1,7 +1,7 @@
 from pathlib import Path
 from dotenv import load_dotenv
-from cli.cli import CLI
-from agents import config
+from cli import CLI
+from agents.core import config
 
 def boot():
     """Bootstrapping function to load environment variables and configuration"""

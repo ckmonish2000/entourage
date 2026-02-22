@@ -1,9 +1,9 @@
 import sys
-from agents.loop import Loop
+from agents.core.agent import Agent
 
 class CLI:
     def __init__(self):
-        self.loop = Loop()
+        self.agent = Agent()
         self.running = True
 
     def _print_welcome(self):
@@ -30,12 +30,12 @@ class CLI:
 
     def _clear_history(self):
         """Clear conversation history"""
-        self.loop = Loop()
+        self.agent = Agent()
         print("\n✓ Conversation history cleared.\n")
 
     def _show_history(self):
         """Display conversation history"""
-        history = self.loop.get_conversation_history()
+        history = self.agent.get_conversation_history()
         print("\n" + "=" * 60)
         print("Conversation History")
         print("=" * 60)
@@ -74,7 +74,7 @@ class CLI:
     def _process_user_input(self, user_input: str):
         """Process user input and stream response"""
         try:
-            response = self.loop.process_message(user_input, stream=True)
+            response = self.agent.process_message(user_input, stream=True)
             print("\nAssistant: ", end="", flush=True)
 
             for chunk in response:
