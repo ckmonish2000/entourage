@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 from dotenv import load_dotenv
 from cli import CLI
@@ -12,7 +13,7 @@ def boot():
 def main():    
     boot()
     cli = CLI()
-    cli.run()
+    asyncio.run(cli.run())
 
 if __name__ == "__main__":
     main()

@@ -24,7 +24,7 @@ class Agent:
         else:
             return self._generate_response()
 
-    def _generate_response(self):
+    async def _generate_response(self):
         """Internal Method to handle non-streaming responses with tool support"""
         iteration = 0
         final_response = ""
@@ -49,7 +49,7 @@ class Agent:
 
                         if args is not None:
                             # Execute tool
-                            tool_output = execute_tool(tool_name, args)
+                            tool_output = await execute_tool(tool_name, args)
 
                             # Update tool calls tracking
                             self._update_tool_call(
@@ -61,7 +61,7 @@ class Agent:
                             )
 
                             # Add tool output to conversation
-                            self.conversation.add_message(MessageRole.DEVELOPER, f"Tool output: {tool_output}")
+                            self.conversation.add_message(MessageRole.DEVELOPER, f"Tool output: {tool_output} analyse the output provided and respond to the user")
 
                 # Continue loop to get assistant's response after tool execution
                 continue
@@ -74,7 +74,7 @@ class Agent:
 
         return final_response
 
-    def _stream_response(self):
+    async def _stream_response(self):
         """Internal method to handle streaming responses with tool execution support.
 
         Processes streaming chunks from the LLM, handles tool calls, executes tools,
@@ -93,7 +93,7 @@ class Agent:
                 tool_calls = {}
                 has_tool_calls = False
                 for chunk in response:
-                    chunk_result = self._process_chunk(chunk)
+                    chunk_result = await self._process_chunk(chunk)
 
                     if chunk_result is None:
                         continue
@@ -117,7 +117,7 @@ class Agent:
                 yield error_message
                 break
 
-    def _process_chunk(self, chunk):
+    async def _process_chunk(self, chunk):
         """Process a streaming chunk and route it to the appropriate handler.
 
         Routes chunks to specialized handlers based on chunk type:
@@ -128,7 +128,7 @@ class Agent:
         elif chunk.type == ChunkType.OUTPUT_ITEM_ADDED:
             return self._handle_tool_call_added(chunk)
         elif chunk.type == ChunkType.OUTPUT_ITEM_DONE:
-            return self._handle_tool_call_done(chunk)
+            return await self._handle_tool_call_done(chunk)
         elif chunk.type == ChunkType.RESPONSE_COMPLETED:
             return {'type': 'response_completed'}
         else:
@@ -167,7 +167,7 @@ class Agent:
             return tool_call_data
 
 
-    def _handle_tool_call_done(self, chunk):
+    async def _handle_tool_call_done(self, chunk):
         """Handle completion of a tool call in the streaming response.
 
         Parses tool arguments, executes the tool, stores the output,
@@ -194,7 +194,7 @@ class Agent:
                 "arguments": args
             }
 
-            tool_output = execute_tool(tool_call['name'], args)
+            tool_output = await execute_tool(tool_call['name'], args)
 
             self._update_tool_call(
                 **tool_call_data,

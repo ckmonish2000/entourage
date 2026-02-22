@@ -71,13 +71,13 @@ class CLI:
             print("Type /help for available commands.\n")
             return True
 
-    def _process_user_input(self, user_input: str):
+    async def _process_user_input(self, user_input: str):
         """Process user input and stream response"""
         try:
             response = self.agent.process_message(user_input, stream=True)
             print("\nAssistant: ", end="", flush=True)
 
-            for chunk in response:
+            async for chunk in response:
                 print(chunk, flush=True, end="")
 
             print("\n")  # Add newline after response
@@ -87,7 +87,7 @@ class CLI:
         except Exception as e:
             print(f"\n\n❌ Error processing message: {str(e)}\n")
 
-    def run(self):
+    async def run(self):
         """Main CLI loop"""
         self._print_welcome()
 
@@ -105,7 +105,7 @@ class CLI:
                         continue
 
                     # Process regular message
-                    self._process_user_input(user_input)
+                    await self._process_user_input(user_input)
 
                 except KeyboardInterrupt:
                     print("\n\nUse /exit to quit or continue chatting.\n")

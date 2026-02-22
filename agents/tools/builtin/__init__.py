@@ -1,3 +1,3 @@
-from . import weather
+from . import shell
 
-__all__ = ["weather"]
+__all__ = ["shell"]
