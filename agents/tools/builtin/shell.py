@@ -27,14 +27,6 @@ async def run_shell_command(command: str) -> ShellResponse:
     )
     stdout, stderr = await process.communicate()
     type = "success" if process.returncode == 0 else "error"
-
-    print({
-        "type": type,
-        "command": command,
-        "stdout": stdout.decode(),
-        "stderr": stderr.decode(),
-        "returncode": process.returncode
-    })
     return {
         "type": type,
         "command": command,
