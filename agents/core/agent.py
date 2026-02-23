@@ -177,7 +177,7 @@ class Agent:
         call_id = getattr(item, 'call_id', None)
 
         if item.type == ItemType.FUNCTION_CALL:
-            index, tool_call = self._fetch_tool_call(call_id)
+            index, tool_call = self.conversation.get_tool_by_id(call_id)
 
             if index is None:
                 return {"type": "error", "message": "Tool call not found"}
@@ -204,13 +204,6 @@ class Agent:
             self.conversation.add_message(MessageRole.DEVELOPER, f"Tool output: {tool_output}")
 
             return tool_call_data
-
-    def _fetch_tool_call(self, call_id: str) -> tuple[int, dict]:
-        """Find a tool call by its call_id in the tracking list.
-
-        Returns the index and tool call dict if found, otherwise (None, None).
-        """
-        return self.conversation.get_tool_by_id(call_id)
 
     def _update_tool_call(self, type, call_id, name, arguments={}, output=None):
         """Update or add a tool call entry in the tracking list.
