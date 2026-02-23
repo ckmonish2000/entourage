@@ -1,9 +1,11 @@
 import sys
 from agents.core.agent import Agent
+from uuid import uuid4
+
 
 class CLI:
     def __init__(self):
-        self.agent = Agent()
+        self.agent = Agent(session_id=str(uuid4()))
         self.running = True
 
     def _print_welcome(self):
@@ -41,7 +43,7 @@ class CLI:
         print("=" * 60)
         for msg in history:
             role = msg.get('role', 'unknown').upper()
-            content = msg.get('content', '')
+            content = msg.get('content', msg)
             print(f"\n[{role}]:")
             print(content)
         print("=" * 60 + "\n")

@@ -9,11 +9,11 @@ from ..tools.executor import execute_tool
 
 
 class Agent:
-    def __init__(self, system_prompt_text=None):
+    def __init__(self, session_id: str, system_prompt_text=None):
+        self.session_id = session_id
         self.llm = LLMClient()
         prompt = system_prompt_text if system_prompt_text else system_prompt
-        self.conversation = Conversation(prompt)
-        self.tool_calls = []
+        self.conversation = Conversation(session_id=session_id, system_prompt=prompt)
 
     def process_message(self, user_message: str, *, stream: bool = True):
         """Public method to process a user message"""
@@ -210,10 +210,7 @@ class Agent:
 
         Returns the index and tool call dict if found, otherwise (None, None).
         """
-        for index, tool_call in enumerate(self.tool_calls):
-            if tool_call['call_id'] == call_id:
-                return index, tool_call
-        return None, None
+        return self.conversation.get_tool_by_id(call_id)
 
     def _update_tool_call(self, type, call_id, name, arguments={}, output=None):
         """Update or add a tool call entry in the tracking list.
@@ -221,19 +218,7 @@ class Agent:
         If a tool call with the given call_id exists, it's updated.
         Otherwise, a new entry is appended.
         """
-        index, tool_call = self._fetch_tool_call(call_id)
-        tool_call_data = {
-            "type": type,
-            "call_id": call_id,
-            "name": name,
-            "arguments": arguments,
-            "output": output
-        }
-
-        if index is not None:
-            self.tool_calls[index] = tool_call_data
-        else:
-            self.tool_calls.append(tool_call_data)
+        self.conversation.update_tool_call(type, call_id, name, arguments, output)
 
     def get_conversation_history(self):
         """Return the full conversation history stored in memory.
@@ -241,7 +226,7 @@ class Agent:
         This includes system, user, assistant, and tool-related developer
         messages in chronological order.
         """
-        return self.conversation.get_messages()
+        return self.conversation.get_history()
 
     def parse_tool_call_argument(self, item: object):
         """Parse tool call arguments from a streamed function-call item.
