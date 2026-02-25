@@ -1,5 +1,5 @@
 """Types and constants for conversation messages."""
-from typing import Literal
+from typing import Literal, TypedDict
 
 
 class MessageRole:
@@ -11,3 +11,8 @@ class MessageRole:
 
 
 MessageRoleType = Literal["user", "assistant", "system", "developer"]
+
+class Usage(TypedDict):
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int

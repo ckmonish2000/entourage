@@ -1,9 +1,9 @@
-from .types import MessageRole, MessageRoleType
+from .types import MessageRole, MessageRoleType, Usage
 from datetime import datetime
-
 
 class Conversation:
     def __init__(self, session_id:str, system_prompt):
+        self.token_usage = Usage(input_tokens=0, output_tokens=0, total_tokens=0)
         self.session_id = session_id
         self.message = [
             {"session_id": session_id, "role": MessageRole.SYSTEM, "content": system_prompt, "createdAt": datetime.now()}
@@ -65,3 +65,21 @@ class Conversation:
     def get_tool_calls(self):
         """Return all tool calls tracked in this conversation sorted by createdAt."""
         return sorted(self.tool_calls, key=lambda x: x.get('createdAt', datetime.min))
+    
+    def update_token_usage(self, usage:Usage):
+        """Update token counts from API response"""
+        self.token_usage = Usage(
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            total_tokens=usage.total_tokens
+        )
+        return self.token_usage
+
+    def get_token_usage(self):
+        """Get current token usage"""
+        return self.token_usage
+
+    def needs_compaction(self, max_tokens, threshold=0.8):
+          """Check if we've hit 80% threshold"""
+          print(self.token_usage['input_tokens'],max_tokens * threshold)
+          return self.token_usage['input_tokens'] >= (max_tokens * threshold)

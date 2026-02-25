@@ -3,7 +3,7 @@ from ..llm.client import LLMClient
 from ..llm.types import ChunkType, ItemType
 from ..prompts.templates import system_prompt
 from .conversation import Conversation
-from .config import MAX_ITERATIONS
+from .config import MAX_ITERATIONS, MAX_CONTEXT_TOKENS, COMPACTION_THRESHOLD
 from .types import MessageRole
 from ..tools.executor import execute_tool
 
@@ -130,6 +130,8 @@ class Agent:
         elif chunk.type == ChunkType.OUTPUT_ITEM_DONE:
             return await self._handle_tool_call_done(chunk)
         elif chunk.type == ChunkType.RESPONSE_COMPLETED:
+            self.conversation.update_token_usage(chunk.response.usage)
+            print(self.conversation.needs_compaction(MAX_CONTEXT_TOKENS, COMPACTION_THRESHOLD))
             return {'type': 'response_completed'}
         else:
             return {"type": "unknown"}
