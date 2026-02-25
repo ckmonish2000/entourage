@@ -131,7 +131,8 @@ class Agent:
             return await self._handle_tool_call_done(chunk)
         elif chunk.type == ChunkType.RESPONSE_COMPLETED:
             self.conversation.update_token_usage(chunk.response.usage)
-            print(self.conversation.needs_compaction(MAX_CONTEXT_TOKENS, COMPACTION_THRESHOLD))
+            if(self.conversation.needs_compaction(MAX_CONTEXT_TOKENS, COMPACTION_THRESHOLD)):
+                self.conversation.compact()
             return {'type': 'response_completed'}
         else:
             return {"type": "unknown"}

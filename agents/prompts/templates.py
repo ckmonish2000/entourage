@@ -52,3 +52,13 @@ Clearly separate:
 2. **Actions**
 3. **Recommendations**
 """
+
+compaction_prompt = """
+The conversation has reached a certain threshold of tokens. 
+Your task is to summarize the conversation and provide a concise summary of the conversation of all the messages and tool calls.
+
+The summary should be semantic and should capture the essence of the conversation.
+
+Conversation History:
+{conversation}
+"""
