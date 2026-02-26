@@ -3,7 +3,7 @@ from ..llm.client import LLMClient
 from ..llm.types import ChunkType, ItemType
 from ..prompts.templates import system_prompt
 from .conversation import Conversation
-from .config import MAX_ITERATIONS, MAX_CONTEXT_TOKENS, COMPACTION_THRESHOLD
+from .config import MAX_ITERATIONS, MAX_CONTEXT_TOKENS, COMPACTION_THRESHOLD, MAX_CONSECUTIVE_TOOL_CALLS
 from .types import MessageRole
 from ..tools.executor import execute_tool
 
@@ -14,6 +14,7 @@ class Agent:
         self.llm = LLMClient()
         prompt = system_prompt_text if system_prompt_text else system_prompt
         self.conversation = Conversation(session_id=session_id, system_prompt=prompt)
+        self.consecutive_tool_calls = [] # list of tool calls in tuple (tool_name, args)
 
     def process_message(self, user_message: str, *, stream: bool = True):
         """Public method to process a user message"""
@@ -29,7 +30,7 @@ class Agent:
         iteration = 0
         final_response = ""
 
-        while iteration < MAX_ITERATIONS:
+        while True:
             response = self.llm.generate(prompt=self.conversation.get_messages())
             iteration += 1
 
@@ -83,7 +84,7 @@ class Agent:
         """
         iteration = 0
 
-        while iteration < MAX_ITERATIONS:
+        while True:
             try:
                 response = self.llm.stream(prompt=self.conversation.get_messages())
                 iteration += 1
@@ -197,6 +198,11 @@ class Agent:
                 "arguments": args
             }
 
+            if self._is_duplicate_tool_call(tool_call['name'], args):
+                return self.conversation.add_message(MessageRole.DEVELOPER, 
+                f"The {tool_call['name']} tool has been called consecutively {MAX_CONSECUTIVE_TOOL_CALLS} times. This is a limit to prevent infinite loops Please respond to the user based on the context"
+                )
+
             tool_output = await execute_tool(tool_call['name'], args)
 
             self._update_tool_call(
@@ -205,6 +211,7 @@ class Agent:
             )
 
             self.conversation.add_message(MessageRole.DEVELOPER, f"Tool output: {tool_output}")
+            self.consecutive_tool_calls.append((tool_call_data['name'], json.dumps(tool_call_data['arguments'])))
 
             return tool_call_data
 
@@ -246,3 +253,11 @@ class Agent:
     def _get_chunk_item(self, chunk: object):
         """Safely extract ``item`` from a streaming chunk."""
         return getattr(chunk, 'item', None)
+
+    def _is_duplicate_tool_call(self, tool_name, args):
+        """Check if the tool call is a duplicate of the previous tool call."""
+        if not self.consecutive_tool_calls:
+            return False
+
+        signature = (tool_name, json.dumps(args))
+        return self.consecutive_tool_calls.count(signature) > MAX_CONSECUTIVE_TOOL_CALLS

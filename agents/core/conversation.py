@@ -86,7 +86,6 @@ class Conversation:
 
     def needs_compaction(self, max_tokens, threshold=0.8):
           """Check if we've hit 80% threshold"""
-          print(self.token_usage['input_tokens'], (max_tokens * threshold))
           return self.token_usage['input_tokens'] >= (max_tokens * threshold)
 
     def compact(self):
