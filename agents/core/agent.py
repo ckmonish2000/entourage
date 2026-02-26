@@ -1,7 +1,12 @@
 import json
 from ..llm.client import LLMClient
 from ..llm.types import ChunkType, ItemType
-from ..prompts.templates import system_prompt
+from ..prompts.templates import (
+    system_prompt,
+    tool_output_message,
+    tool_output_with_instruction,
+    consecutive_tool_limit_message
+)
 from .conversation import Conversation
 from .config import MAX_ITERATIONS, MAX_CONTEXT_TOKENS, COMPACTION_THRESHOLD, MAX_CONSECUTIVE_TOOL_CALLS
 from .types import MessageRole
@@ -62,7 +67,10 @@ class Agent:
                             )
 
                             # Add tool output to conversation
-                            self.conversation.add_message(MessageRole.DEVELOPER, f"Tool output: {tool_output} analyse the output provided and respond to the user")
+                            self.conversation.add_message(
+                                MessageRole.DEVELOPER,
+                                tool_output_with_instruction.format(tool_output=tool_output)
+                            )
 
                 # Continue loop to get assistant's response after tool execution
                 continue
@@ -199,8 +207,12 @@ class Agent:
             }
 
             if self._is_duplicate_tool_call(tool_call['name'], args):
-                return self.conversation.add_message(MessageRole.DEVELOPER, 
-                f"The {tool_call['name']} tool has been called consecutively {MAX_CONSECUTIVE_TOOL_CALLS} times. This is a limit to prevent infinite loops Please respond to the user based on the context"
+                return self.conversation.add_message(
+                    MessageRole.DEVELOPER,
+                    consecutive_tool_limit_message.format(
+                        tool_name=tool_call['name'],
+                        max_calls=MAX_CONSECUTIVE_TOOL_CALLS
+                    )
                 )
 
             tool_output = await execute_tool(tool_call['name'], args)
@@ -210,7 +222,10 @@ class Agent:
                 output=tool_output
             )
 
-            self.conversation.add_message(MessageRole.DEVELOPER, f"Tool output: {tool_output}")
+            self.conversation.add_message(
+                MessageRole.DEVELOPER,
+                tool_output_message.format(tool_output=tool_output)
+            )
             self.consecutive_tool_calls.append((tool_call_data['name'], json.dumps(tool_call_data['arguments'])))
 
             return tool_call_data
