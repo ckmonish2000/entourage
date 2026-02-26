@@ -94,6 +94,7 @@ class Agent:
 
         while True:
             try:
+                print('thinking... \n')
                 response = self.llm.stream(prompt=self.conversation.get_messages())
                 iteration += 1
 
@@ -163,6 +164,8 @@ class Agent:
         Extracts tool call metadata (call_id, name) and registers it in the
         tool_calls tracking list.
         """
+
+        print('identifying tool call...')
         item = self._get_chunk_item(chunk)
         call_id = getattr(item, 'call_id', None)
         if item.type == ItemType.FUNCTION_CALL:
@@ -215,7 +218,9 @@ class Agent:
                     )
                 )
 
+            print(f"Using tool {tool_call['name']} with arguments {args}...")
             tool_output = await execute_tool(tool_call['name'], args)
+            print("Execution complete...\n")
 
             self._update_tool_call(
                 **tool_call_data,
