@@ -20,6 +20,15 @@ async def run_shell_command(command: str) -> ShellResponse:
             "returncode": 0
         }
     """
+    if not command:
+        return {
+            "type": "error",
+            "command": command,
+            "stdout": "",
+            "stderr": "Command is required",
+            "returncode": 1
+        }
+
     process = await asyncio.create_subprocess_shell(
         command,
         stdout=asyncio.subprocess.PIPE,
