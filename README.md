@@ -117,3 +117,4 @@ Warp's Oz is powerful but proprietary. Entourage brings similar multi-agent orch
 ## Status
 
 Early development — core orchestration and sandboxing functional, dashboard in progress.
+
