@@ -1,5 +1,5 @@
 from ..registry import register_tool
-from ...utils import (
+from utils.file_utils import (
     LsTruncatedResponse,
     validate_path,
     list_files,
