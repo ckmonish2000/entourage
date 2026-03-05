@@ -1,7 +1,7 @@
 from pathlib import Path
-from ..registry import register_tool
+# from ..registry import register_tool
 
-@register_tool
+# @register_tool
 def read(path: str, encoding: str = "utf-8", start_line: int = 1, max_lines: int = 10) -> str:
     """
     Read the contents of a file.
@@ -27,6 +27,9 @@ def read(path: str, encoding: str = "utf-8", start_line: int = 1, max_lines: int
         lines = []
         for index, line in enumerate(f,start=1):
             if index >= start_line and index < start_line + max_lines:
-                lines.append(line)
-        return "".join(lines)
+                lines.append(f"{index:4d} | {line}")
+        return "\n".join(lines)
         
+
+if __name__ == "__main__":
+    print(read('./read.py',encoding='utf-8'))
