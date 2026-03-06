@@ -1,5 +1,5 @@
 """File system utility functions for agent tools."""
-
+import mimetypes
 from pathlib import Path
 from typing import TypedDict
 
@@ -101,3 +101,33 @@ def generate_tree(path: str = ".", prefix: str = "") -> str:
             tree += "\n"
 
     return tree
+
+
+def get_file_type(file_path: str) -> str:
+    """
+    Determine the type of a file (text, image, pdf, notebook, or unknown).
+
+    Args:
+        file_path: Path to the file
+
+    Returns:
+        String indicating the file type
+    """
+    mime_type, _ = mimetypes.guess_type(file_path)
+
+    if mime_type is None:
+        # Check for Jupyter notebook based on file extension
+        if file_path.endswith('.ipynb'):
+            return 'notebook'
+        return 'unknown'
+
+    if mime_type.startswith('text/'):
+        return 'text'
+    elif mime_type.startswith('image/'):
+        return 'image'
+    elif mime_type == 'application/pdf':
+        return 'pdf'
+    elif mime_type == 'application/x-ipynb+json':
+        return 'notebook'
+    else:
+        return 'unknown'
