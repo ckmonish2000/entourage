@@ -113,6 +113,7 @@ def get_file_type(file_path: str) -> str:
     Returns:
         String indicating the file type
     """
+    print(mimetypes.guess_type(file_path))
     mime_type, _ = mimetypes.guess_type(file_path)
 
     if mime_type is None:
@@ -125,6 +126,10 @@ def get_file_type(file_path: str) -> str:
         return 'text'
     elif mime_type.startswith('image/'):
         return 'image'
+    elif mime_type.startswith('video/'):
+        return 'video'
+    elif mime_type.startswith('audio/'):
+        return 'audio'
     elif mime_type == 'application/pdf':
         return 'pdf'
     elif mime_type == 'application/x-ipynb+json':

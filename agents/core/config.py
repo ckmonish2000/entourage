@@ -10,6 +10,7 @@ MAX_CONTEXT_TOKENS = 128000  # Adjust based on your model
 COMPACTION_THRESHOLD = 0.8  # Trigger at 80%
 MAX_CONSECUTIVE_TOOL_CALLS = 5   # Maximum number of consecutive tool calls before loop detection
 MAX_LINE_LENGTH = 2000 # Maximum number of characters to read from a line
+UNSUPPORTED_FILE_TYPES = ['image', 'audio','video']
 
 def load_config_from_env():
     global MODEL_NAME, OPENAI_API_KEY
