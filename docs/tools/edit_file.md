@@ -1,35 +1,48 @@
-# Tool: edit_file (Proposed)
+# Tool: edit_file
 
-Performs surgical text replacement within a file. Part of EIP-1.
+Performs surgical text replacement within a file using exact literal matching.
 
 ## Arguments
-- `path` (str): Path to the target file.
-- `old_string` (str, optional): The exact literal text to be replaced.
-- `new_string` (str, optional): The new text to insert.
-- `replacements` (list, optional): A list of objects containing `old_string` and `new_string` for batch updates.
-- `allow_multiple` (bool, optional): If true, replaces all occurrences of `old_string`. Default is `false`.
+- `path` (str): Path to the target file (absolute or relative).
+- `old_string` (str): The exact literal text to be replaced.
+- `new_string` (str): The replacement text.
+- `replace_all` (bool, optional): If `true`, replaces all occurrences of `old_string`. Default is `false`.
+- `working_dir` (str, optional): Base directory for resolving relative paths. Defaults to current working directory.
 
 ## Constraints
 - By default, `old_string` must exist exactly once in the file to ensure precision.
-- If `replacements` is used, each individual `old_string` must be unique unless `allow_multiple` is set.
-- Recommended to use after a `read` operation to verify context.
+- Recommended to use after a `read` operation to verify context and indentation.
 
 ## Example
 ```python
-# Single edit
+# Single surgical edit (Default)
 edit_file(
     path="config.py",
     old_string='DEBUG = False',
     new_string='DEBUG = True'
 )
 
-# Batch edit
+# Global replacement
 edit_file(
-    path="config.py",
-    replacements=[
-        {"old_string": "PORT = 8000", "new_string": "PORT = 8080"},
-        {"old_string": "TIMEOUT = 30", "new_string": "TIMEOUT = 60"}
-    ]
+    path="utils.py",
+    old_string='v1',
+    new_string='v2',
+    replace_all=True
+)
+
+# Working with relative paths and specific working directory
+edit_file(
+    path="src/config.py",  # Relative path
+    old_string='PORT = 3000',
+    new_string='PORT = 8080',
+    working_dir="/projects/my-app"  # Resolves to /projects/my-app/src/config.py
+)
+
+# Creating a new file in nested directories (auto-creates parent dirs)
+edit_file(
+    path="src/components/auth/LoginForm.tsx",  # Parent dirs created automatically
+    old_string='',  # Empty for new file
+    new_string='export const LoginForm = () => { ... }'
 )
 ```
 
@@ -48,29 +61,27 @@ Both Claude Code and Goose prioritize **precision over convenience**.
 
 ### 2. Key Considerations for Implementation
 
-*   **Uniqueness**: Your Python code should first count the occurrences of `old_string`. If `count != 1`, return an error message explaining whether it was 0 (not found) or >1 (ambiguous).
+*   **Uniqueness**: Your Python code should first count the occurrences of `old_string`. If `count != 1` and `replace_all` is `false`, return an error message explaining whether it was 0 (not found) or >1 (ambiguous).
 *   **Atomicity**: Always try to read the whole file, perform the replacement in memory, and then write it back. This ensures that if the script crashes mid-way, you don't end up with a half-written file.
 *   **Path Safety**: Never trust the `path` argument directly. Use `pathlib` to ensure the path is inside your project directory and hasn't been "hacked" using `../` (directory traversal).
 *   **Encoding**: Always specify `encoding="utf-8"` when reading/writing to avoid issues with special characters.
+*   **Working Directory Context**: Support both absolute and relative paths. Resolve relative paths against a configurable working directory for multi-project scenarios.
+*   **Automatic Directory Creation**: When writing files, automatically create parent directories if they don't exist. This prevents errors and improves UX.
+*   **Differentiated Feedback**: Provide different success messages for "Created" (new file) vs "Edited" (existing file) so the LLM understands what action occurred.
 
 ### 3. Python Guidance for Junior Developers
 
 #### Use `TypedDict` for Argument Validation
-In Python, you can use `TypedDict` from the `typing` module to define the structure of your tool's arguments. This helps with editor autocompletion and static analysis (like `mypy`).
+In Python, you can use `TypedDict` from the `typing` module to define the structure of your tool's arguments.
 
 ```python
-from typing import TypedDict, List, Optional
-
-class Replacement(TypedDict):
-    old_string: str
-    new_string: str
+from typing import TypedDict, Optional
 
 class EditFileArguments(TypedDict):
     path: str
-    old_string: Optional[str]
-    new_string: Optional[str]
-    replacements: Optional[List[Replacement]]
-    allow_multiple: Optional[bool]
+    old_string: str
+    new_string: str
+    replace_all: Optional[bool]
 ```
 
 #### Use `pathlib` over `os.path`
@@ -91,38 +102,14 @@ except Exception as e:
     return f"Error reading file: {e}"
 ```
 
-#### The "Surgical" Logic
-Here is the conceptual flow for your Python tool:
-1.  **Resolve** the path and check if it exists.
-2.  **Read** the entire file content.
-3.  **Check** `content.count(old_string)`.
-    *   If `0`: Return "String not found. Did you check the file content first?"
-    *   If `>1`: Return "Multiple matches found. Please provide more context to make the match unique."
-4.  **Replace**: `new_content = content.replace(old_string, new_string, 1)`.
-5.  **Write**: `file_path.write_text(new_content, encoding="utf-8")`.
-6.  **Return** a success message (maybe even a small diff).
-
 ### 4. Why not line numbers?
 Line numbers are "brittle." If another process (or your previous tool call) added a line at the top of the file, every line number below it is now wrong. Literal string matching with context (before/after lines) is much more robust against "drift."
 
-### 5. Handling Large Files (The "10GB Log" Problem)
-
-In reality, an LLM should **never** be performing surgical edits on a 10GB log file. That's a job for stream processors like `sed`, `awk`, or specialized logging tools. However, for "large-ish" source files (several MBs), here is how to stay efficient:
-
-*   **Chunking (Advanced)**: You can read the file in chunks (e.g., 64KB at a time). To handle the case where `old_string` is split between two chunks, you overlap the chunks by the length of `old_string`.
-*   **Memory Mapping (`mmap`)**: Python's `mmap` module allows you to "map" a file into the process's virtual memory. The OS then handles loading only the parts you are actually reading. This is extremely fast and memory-efficient for large files.
-*   **Tool Scope**: In your implementation, you might want to add a safeguard:
-    ```python
-    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB limit
-    if file_path.stat().st_size > MAX_FILE_SIZE:
-        return "Error: File too large for surgical edit. Use specialized tools."
-    ```
-
-### 6. Solving Ambiguity: The "Context" Strategy
+### 5. Solving Ambiguity: The "Context" Strategy
 
 You asked: *If there are multiple occurrences, how does the tool decide?*
 
-The answer is: **It doesn't.** It should fail and ask for help. This is exactly how Claude Code works.
+The answer is: **It doesn't.** Unless `replace_all` is `true`, it should fail and ask for help. This is exactly how Claude Code works.
 
 #### The "Fail Fast" Pattern
 If you find 5 occurrences of `x = 1`, your tool should return:
@@ -142,114 +129,525 @@ def initialize_user():
 
 By including the function header, the match becomes unique even if `x = 1` appears in ten other functions. This is why we don't need line numbers—**surrounding code is the best "address" for an edit.**
 
-### 7. Response Format: Providing Context to the LLM
+### 6. Response Format: Providing Context to the LLM
 
-The response should not just say "Success." It needs to provide "visual" confirmation so the LLM knows its change was applied correctly within the file's structure.
+The response should provide "visual" confirmation so the LLM knows its change was applied correctly.
 
 #### Success Response
-Provide a small snippet showing the new code with 2-3 lines of surrounding context. This acts as a "mini-read" and saves the LLM from having to call `read` again.
-
-**Example:**
-```text
-Successfully replaced 1 occurrence in 'config.py'.
-
-Context:
----
-    PORT = 8080
-    DEBUG = True  # <--- Changed this line
-    LOG_LEVEL = "INFO"
----
-```
+Provide a unified diff showing exactly what changed. This provides the LLM with immediate visual confirmation of its work.
 
 #### Error Response
 If it fails, be extremely specific. Don't just say "Error."
 
-*   **Not Found**: "Error: `old_string` not found in `path`. Please ensure you have the exact indentation and spelling. Tip: Use `read` to see the current file state."
-*   **Multiple Matches**: "Error: Found 3 matches for `old_string`. Ambiguous edit. Please provide more context lines to make the match unique."
-*   **File Issues**: "Error: File is too large (15MB). Surgical edits are limited to 10MB."
-
-By giving the LLM the "Why," you enable it to self-correct in the next turn.
-
-### 8. Batching & Bulk Updates
-
-You asked: *What if the model has to perform 20 updates? Should it call the tool 20 times?*
-
-There are two ways to handle this:
-
-#### A. The "Batch List" Approach (Recommended for Different Edits)
-Instead of 20 tool calls (which is slow and expensive), the tool should accept a `replacements` list.
-*   **Logic**: Your Python code should iterate through the list, verify each `old_string` is unique, and apply them one by one in memory before writing the file once.
-*   **Failure**: If *any* of the 20 strings are missing or ambiguous, the **entire batch should fail**. This prevents the file from being left in a "half-edited" state.
-
-#### B. The `allow_multiple` Flag (For Identical Occurrences)
-If you need to change `v1` to `v2` in 20 places where the code is identical:
-*   Add an `allow_multiple: bool` parameter.
-*   If `true`, use `content.replace(old, new)` (without the limit of 1).
-*   **Warning**: This is dangerous! If the LLM didn't realize `v1` was also part of a sensitive variable name elsewhere, it will break the code. Usually, it is better for the LLM to use the "Batch List" with unique context for each location.
-
-### 9. Why Batching is Efficient
-1.  **Reduced Latency**: Only one network round-trip between the LLM and your tool.
-2.  **Atomicity**: You read the file once, apply all changes, and write once. This reduces the chance of another process interfering.
-3.  **Cost**: LLM providers charge per tool call (in terms of overhead/tokens). Batching 20 edits into 1 call is significantly cheaper.
+*   **Not Found**: "Error: `old_string` not found in `path`. Please ensure you have the exact indentation and spelling."
+*   **Multiple Matches**: "Error: Found 3 matches for `old_string`. Ambiguous edit. Please provide more context lines to make the match unique, or use `replace_all=true`."
 
 ---
 
 ## Draft Implementation (Blueprint)
 
-This is a conceptual Python implementation for you to follow.
+This is a professional, Goose-inspired Python implementation with **working directory context**, **automatic directory creation**, and **differentiated feedback**.
 
 ```python
-from typing import List, Optional, TypedDict
+import difflib
+from typing import List, Optional
 from pathlib import Path
+import os
 
-class Replacement(TypedDict):
-    old_string: str
-    new_string: str
+def resolve_path(path: str, working_dir: Optional[str] = None) -> Path:
+    """
+    Resolve a path to an absolute Path object.
+
+    Args:
+        path: File path (absolute or relative)
+        working_dir: Optional base directory for relative paths
+
+    Returns:
+        Absolute Path object
+
+    How it works:
+    1. Convert string to Path object
+    2. If already absolute, return as-is
+    3. If relative, resolve against working_dir or current directory
+
+    Why this matters:
+    - LLMs often work with multiple projects simultaneously
+    - Relative paths need context to be meaningful
+    - Absolute paths are unambiguous and safe
+    """
+    path_obj = Path(path)
+
+    # If already absolute, return it
+    if path_obj.is_absolute():
+        return path_obj
+
+    # Otherwise, resolve against working_dir or current directory
+    if working_dir:
+        base = Path(working_dir)
+    else:
+        base = Path.cwd()  # Current working directory
+
+    return (base / path_obj).resolve()
+
+def get_line_numbers(content: str, substring: str) -> List[int]:
+    """Finds all line numbers (1-indexed) where a substring starts."""
+    lines = content.splitlines()
+    matches = []
+    for i, line in enumerate(lines):
+        if substring in line:
+            matches.append(i + 1)
+    return matches
 
 def edit_file(
     path: str,
-    old_string: Optional[str] = None,
-    new_string: Optional[str] = None,
-    replacements: Optional[List[Replacement]] = None,
-    allow_multiple: bool = False
+    old_string: str,
+    new_string: str,
+    replace_all: bool = False,
+    working_dir: Optional[str] = None
 ) -> str:
-    # 1. Path Safety
-    file_path = Path(path).resolve()
-    if not file_path.exists():
-        return f"Error: File '{path}' not found."
+    """
+    Perform surgical text replacement in a file.
 
-    # 2. Normalize inputs into a single batch
-    work_list: List[Replacement] = replacements or []
-    if old_string and new_string:
-        work_list.append({"old_string": old_string, "new_string": new_string})
+    Args:
+        path: Target file path (absolute or relative)
+        old_string: Exact text to replace
+        new_string: Replacement text
+        replace_all: Replace all occurrences (default: False)
+        working_dir: Base directory for relative paths (default: current dir)
 
-    if not work_list:
-        return "Error: No replacements provided."
+    Returns:
+        Success message with diff or error message
+    """
+    # FEATURE 1: Working Directory Context
+    # Resolve the path considering working_dir
+    file_path = resolve_path(path, working_dir)
 
-    try:
-        # 3. Read content
-        content = file_path.read_text(encoding="utf-8")
-        new_content = content
+    # Check if this is a new file (for differentiated feedback later)
+    is_new_file = not file_path.exists()
 
-        # 4. Process Batch (All-or-Nothing)
-        for item in work_list:
-            old = item["old_string"]
-            new = item["new_string"]
-            
-            count = content.count(old)
-            
+    # If editing existing file, read and validate
+    if not is_new_file:
+        try:
+            original_content = file_path.read_text(encoding="utf-8")
+
+            # Check for existence and uniqueness
+            count = original_content.count(old_string)
+
             if count == 0:
-                return f"Error: '{old}' not found. Batch aborted."
-            if count > 1 and not allow_multiple:
-                return f"Error: '{old}' found {count} times. Need more context. Batch aborted."
+                return f"Error: The string to replace was not found in {path}.\n" \
+                       "Please ensure exact spelling, case, and indentation."
 
-            new_content = new_content.replace(old, new, -1 if allow_multiple else 1)
+            if count > 1 and not replace_all:
+                lines = get_line_numbers(original_content, old_string)
+                return f"Error: Multiple matches ({count}) found for the provided string in {path} at lines: {lines}.\n" \
+                       "Please provide more surrounding context to make the match unique, or set replace_all=true."
 
-        # 5. Atomic Write
-        file_path.write_text(new_content, encoding="utf-8")
-        
-        return f"Success: Applied {len(work_list)} replacements to {path}."
+            # Perform replacement
+            new_content = original_content.replace(old_string, new_string, -1 if replace_all else 1)
 
+        except Exception as e:
+            return f"Error reading file: {str(e)}"
+    else:
+        # New file: just use new_string as content
+        original_content = ""
+        new_content = new_string
+        count = 1
+
+    # FEATURE 2: Automatic Directory Creation
+    # Create parent directories if they don't exist
+    try:
+        parent_dir = file_path.parent
+        if parent_dir and not parent_dir.exists():
+            parent_dir.mkdir(parents=True, exist_ok=True)
+            # parents=True: Create all intermediate directories (like mkdir -p)
+            # exist_ok=True: Don't error if directory already exists
     except Exception as e:
-        return f"System Error: {str(e)}"
+        return f"Error creating directory {parent_dir}: {str(e)}"
+
+    # Write the file atomically
+    try:
+        file_path.write_text(new_content, encoding="utf-8")
+    except Exception as e:
+        return f"Error writing file: {str(e)}"
+
+    # FEATURE 3: Differentiated Write Feedback
+    # Provide different messages for new vs edited files
+    if is_new_file:
+        line_count = new_content.count('\n') + 1 if new_content else 0
+        return f"Created {path} ({line_count} lines)"
+    else:
+        # Generate diff for edited files
+        diff = difflib.unified_diff(
+            original_content.splitlines(),
+            new_content.splitlines(),
+            fromfile=f"a/{path}",
+            tofile=f"b/{path}",
+            lineterm=""
+        )
+        diff_text = "\n".join(list(diff))
+
+        old_lines = old_string.count('\n') + 1
+        new_lines = new_string.count('\n') + 1
+
+        return f"Edited {path} ({old_lines} lines → {new_lines} lines)\n\nDiff:\n```diff\n{diff_text}\n```"
 ```
+
+---
+
+## Deep Dive for Junior Developers
+
+### 1. Why `read_text()` instead of `open()` with a loop?
+
+Great question! In many Python tutorials, you see this:
+```python
+with open("file.txt", "r") as f:
+    for line in f:
+        print(line)
+```
+This is **Streaming**. It's great for 10GB log files because you only keep one line in memory at a time. 
+
+**However**, for a surgical edit tool, we use `read_text()` (which reads the whole file into one big string) for three reasons:
+1.  **Complexity**: We need to count occurrences across the *entire* file to ensure uniqueness. If your `old_string` spans multiple lines, a line-by-line loop would miss it!
+2.  **Size**: Source code files (like `.py`, `.js`, `.md`) are usually very small (a few KB or MB). Your computer has GBs of RAM, so loading a 1MB file as a string is perfectly safe and much faster.
+3.  **Cleanliness**: `read_text()` is a `pathlib` method that handles opening and closing the file for you in one line. It's the modern, "Pythonic" way.
+
+### 2. Mini-Tutorial: `difflib.unified_diff`
+
+`difflib` is a built-in Python library for comparing sequences. `unified_diff` specifically creates the "Standard Diff" format used by Git.
+
+#### How it works:
+It takes two **lists of strings** (lines) and compares them.
+
+```python
+import difflib
+
+list_a = ["Line 1", "Line 2", "Line 3"]
+list_b = ["Line 1", "Line Changed", "Line 3"]
+
+# Generate the diff
+diff = difflib.unified_diff(list_a, list_b, fromfile="before.txt", tofile="after.txt")
+
+# unified_diff returns a 'generator', so we join it into a string to see it
+print("\n".join(list(diff)))
+```
+
+#### Understanding the Output:
+*   `---`: The original file.
+*   `+++`: The new file.
+*   `@@ -1,3 +1,3 @@`: This is the "Hunk Header." It tells you where the change happened (start line, number of lines).
+*   ` ` (space): Unchanged line (context).
+*   `-`: Line removed from the original.
+*   `+`: Line added to the new version.
+
+In our tool, we use `.splitlines()` on our file strings to turn them into the lists that `difflib` needs.
+
+---
+
+## Deep Dive: The Three Key Features
+
+### Feature 1: Working Directory Context
+
+#### What is it?
+The ability to resolve file paths relative to a configurable "working directory" instead of always using the current directory.
+
+#### Why do we need it?
+
+**Problem Scenario:**
+Imagine an LLM working with multiple projects in a single session:
+```
+/home/user/
+├── project-a/
+│   └── src/config.py
+└── project-b/
+    └── src/config.py
+```
+
+If the LLM says `edit_file(path="src/config.py", ...)`, which config.py do we edit? Without working directory context, we'd always edit based on the current working directory, which might be `/home/user/`. This is ambiguous and error-prone.
+
+**Solution:**
+```python
+# Explicitly specify which project
+edit_file(
+    path="src/config.py",
+    old_string='PORT = 3000',
+    new_string='PORT = 8080',
+    working_dir="/home/user/project-a"  # Unambiguous!
+)
+```
+
+#### How is it implemented?
+
+The `resolve_path()` function handles this:
+
+```python
+def resolve_path(path: str, working_dir: Optional[str] = None) -> Path:
+    path_obj = Path(path)
+
+    # Step 1: Check if already absolute
+    if path_obj.is_absolute():
+        return path_obj  # e.g., "/home/user/file.py" → use as-is
+
+    # Step 2: Resolve relative paths
+    if working_dir:
+        base = Path(working_dir)  # Use specified working dir
+    else:
+        base = Path.cwd()  # Fallback to current working directory
+
+    return (base / path_obj).resolve()
+```
+
+**Key decisions:**
+1. **Absolute paths are untouched**: If you pass `/home/user/file.py`, we use it exactly as-is, regardless of `working_dir`. This makes sense because absolute paths are already unambiguous.
+
+2. **Relative paths are resolved**: If you pass `src/config.py`, we resolve it against:
+   - `working_dir` if provided (explicit context)
+   - Current working directory otherwise (fallback)
+
+3. **`.resolve()` normalizes the path**: This:
+   - Converts `../` and `./` to actual paths
+   - Follows symlinks
+   - Returns an absolute path
+
+   Example: `Path("/home/user/project/../other").resolve()` → `/home/user/other`
+
+#### Why this matters for LLMs:
+
+LLMs often operate in **multi-project contexts**. A single conversation might involve:
+- Reading from project A
+- Writing to project B
+- Comparing implementations between C and D
+
+Without working directory context, the LLM would need to:
+1. Track the current working directory mentally
+2. Always use absolute paths (verbose and error-prone)
+3. Use shell commands like `cd` before every file operation (inefficient)
+
+With working directory context:
+- The LLM can work with natural relative paths (`src/utils.py`)
+- Each operation can specify its context explicitly
+- No need for state management or directory changing
+
+---
+
+### Feature 2: Automatic Directory Creation
+
+#### What is it?
+When writing a file, automatically create any missing parent directories instead of throwing an error.
+
+#### Why do we need it?
+
+**Problem Scenario:**
+An LLM wants to create a new React component:
+```python
+edit_file(
+    path="src/components/auth/LoginForm.tsx",
+    old_string='',
+    new_string='export const LoginForm = ...'
+)
+```
+
+If `src/components/auth/` doesn't exist, the file write will fail with:
+```
+FileNotFoundError: [Errno 2] No such file or directory: 'src/components/auth/LoginForm.tsx'
+```
+
+**The traditional approach:**
+The LLM would need to:
+1. Check if directories exist
+2. Create them manually with `mkdir` commands
+3. Then create the file
+
+This requires **3 separate tool calls** and **mental state tracking**.
+
+**The automatic approach:**
+```python
+# Just create the file - directories are created automatically!
+edit_file(
+    path="src/components/auth/LoginForm.tsx",
+    old_string='',
+    new_string='export const LoginForm = ...'
+)
+# → Automatically creates: src/ → src/components/ → src/components/auth/
+```
+
+This is **1 tool call** and **zero cognitive overhead**.
+
+#### How is it implemented?
+
+```python
+# Get the parent directory of the target file
+parent_dir = file_path.parent  # e.g., /project/src/components/auth
+
+# Create it if it doesn't exist
+if parent_dir and not parent_dir.exists():
+    parent_dir.mkdir(parents=True, exist_ok=True)
+    # parents=True: Create all intermediate directories (like 'mkdir -p')
+    # exist_ok=True: Don't error if directory already exists (race condition safety)
+```
+
+**Key decisions:**
+
+1. **`parents=True`**: This is like `mkdir -p` in Unix. It creates the entire directory chain.
+   ```python
+   # Without parents=True, you'd need to create each level separately:
+   Path("src").mkdir()
+   Path("src/components").mkdir()
+   Path("src/components/auth").mkdir()
+
+   # With parents=True, one call creates everything:
+   Path("src/components/auth").mkdir(parents=True)
+   ```
+
+2. **`exist_ok=True`**: Prevents errors if the directory already exists. This is important because:
+   - Another process might create the directory between our check and creation (race condition)
+   - Idempotency: running the same operation twice doesn't error
+
+3. **Only create if needed**: We check `not parent_dir.exists()` first to avoid unnecessary system calls.
+
+#### Why this matters for LLMs:
+
+**Reduces tool calls:** Instead of:
+```python
+# Without automatic creation (3 tool calls):
+shell("mkdir -p src/components/auth")  # Tool call 1
+read("src/components/auth")            # Tool call 2 (verify)
+edit_file("src/components/auth/LoginForm.tsx", ...)  # Tool call 3
+```
+
+We get:
+```python
+# With automatic creation (1 tool call):
+edit_file("src/components/auth/LoginForm.tsx", ...)  # Done!
+```
+
+**Reduces cognitive load:** The LLM doesn't need to:
+- Remember to check directory existence
+- Know the `mkdir -p` command
+- Handle error recovery if directories are missing
+
+**Better developer experience:** Matches human intuition - when you create a file in a nested path, you expect the tool to "just handle it."
+
+---
+
+### Feature 3: Differentiated Write Feedback
+
+#### What is it?
+Providing different success messages for **creating new files** vs **editing existing files**.
+
+#### Why do we need it?
+
+**Problem: LLMs need context awareness**
+
+Consider these two scenarios:
+
+**Scenario A:**
+```python
+edit_file(path="src/config.py", old_string='DEBUG = False', new_string='DEBUG = True')
+# Response: "Success: Replaced 1 occurrence(s) in src/config.py"
+```
+
+**Scenario B:**
+```python
+edit_file(path="src/new-feature.py", old_string='', new_string='def new_feature(): ...')
+# Response: "Success: Replaced 1 occurrence(s) in src/new-feature.py"  ❌ Confusing!
+```
+
+In Scenario B, we didn't "replace" anything - we **created** a new file! The same message for both actions is misleading and makes it harder for the LLM to track its actions.
+
+#### How is it implemented?
+
+```python
+# Check if file exists BEFORE we start editing
+is_new_file = not file_path.exists()
+
+# ... perform the edit ...
+
+# AFTER writing, provide context-appropriate feedback
+if is_new_file:
+    line_count = new_content.count('\n') + 1 if new_content else 0
+    return f"Created {path} ({line_count} lines)"
+else:
+    # For edits, show the transformation
+    old_lines = old_string.count('\n') + 1
+    new_lines = new_string.count('\n') + 1
+    return f"Edited {path} ({old_lines} lines → {new_lines} lines)\n\nDiff:\n{diff}"
+```
+
+**Key decisions:**
+
+1. **Check existence early:** We determine `is_new_file` at the start, not the end. This is important because:
+   - We know the intent from the beginning
+   - We can skip unnecessary operations for new files (like reading content)
+   - It's more efficient
+
+2. **Different information for different actions:**
+   - **Created files**: Show total line count (gives sense of file size)
+   - **Edited files**: Show transformation (old lines → new lines) + diff
+
+3. **No diff for new files:** Showing a diff for a brand new file is redundant - the entire content is "new". Just report the creation and line count.
+
+#### Example outputs:
+
+**Creating a new file:**
+```
+Created src/components/Button.tsx (45 lines)
+```
+Clear, concise, informative. The LLM knows:
+- A new file was created (not edited)
+- Where it was created
+- How large it is
+
+**Editing an existing file:**
+```
+Edited src/config.py (1 lines → 1 lines)
+
+Diff:
+```diff
+--- a/src/config.py
++++ b/src/config.py
+@@ -1,1 +1,1 @@
+-DEBUG = False
++DEBUG = True
+```
+```
+
+Rich feedback. The LLM knows:
+- An existing file was modified (not created)
+- What changed (the diff)
+- The scope of the change (1 line → 1 line)
+
+#### Why this matters for LLMs:
+
+**Mental model alignment:** LLMs build internal representations of the codebase state. Differentiated feedback helps them:
+- Track which files exist vs which are new
+- Understand the scope of their changes
+- Verify their intentions were executed correctly
+
+**Error detection:** If an LLM intends to create a new file but gets "Edited" feedback, it immediately knows something went wrong (maybe the file already exists from a previous operation).
+
+**Audit trail:** In long conversations, the LLM can look back at its tool call history and quickly understand:
+- "Created config.py" → I made this file
+- "Edited config.py" → I modified an existing file
+
+**Better prompting:** The LLM can make smarter decisions:
+```python
+# If it sees "Created auth.py" earlier, it knows to use edit_file() next time
+# If it never saw "Created db.py", it knows to create it first
+```
+
+---
+
+## Summary: Why These Features Matter Together
+
+These three features form a **cohesive developer experience**:
+
+1. **Working Directory Context** → Enables multi-project workflows
+2. **Automatic Directory Creation** → Reduces friction and tool calls
+3. **Differentiated Feedback** → Provides clear state awareness
+
+Together, they transform the edit tool from a simple file modifier into an **intelligent coding assistant** that:
+- Understands project context
+- Handles filesystem complexity automatically
+- Communicates clearly about what actions were taken
+
+This is the difference between a tool that requires **constant supervision** and one that enables **autonomous LLM coding**.
