@@ -4,6 +4,7 @@ from utils.file_utils import get_file_type
 from agents.core.config import MAX_LINE_LENGTH, UNSUPPORTED_FILE_TYPES
 # from ..registry import register_tool
 from typing import TypedDict
+from .write_file import mark_file_as_read
 
 class ReadResponse(TypedDict):
     path: str
@@ -99,6 +100,9 @@ def read(path: str, encoding: str = "utf-8", offset: int = 1, limit: int = 2000)
         end_line = offset + lines_returned - 1 if lines_returned > 0 else offset
         has_more = end_line < total_lines
         content = "\n".join(lines)
+
+        # Mark file as read to enable write_file safety mechanism
+        mark_file_as_read(str(path_obj))
 
         return ReadResponse(
             path=str(path_obj),
